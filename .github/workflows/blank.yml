@@ -1,0 +1,84 @@
+name: Deploy to staging/prod
+
+# env:
+  # AWS_REGION : "us-east-1"
+
+on:
+  push:
+    branches:
+      # - master-final
+      - main
+
+concurrency: deploy-${{ github.ref }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # - uses: actions/checkout@v2
+    - uses: actions/setup-python@v2
+      with:
+        python-version: '3.8'
+    - name: Install pipenv
+      run: pip install pipenv
+    - uses: actions/setup-node@v2
+      with:
+        node-version: '14'
+
+    # - name: Install deployment dependencies
+    #   run: npm install -D
+
+    # - name: Install Node modules in various services
+    #   run: bash install_node_modules.sh
+    
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+         fetch-depth: 0
+    - name: Get changes
+      id: changed-files
+      run: changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.event.after }}) >> $GITHUB_OUTPUT
+
+    - name: configure aws credentials
+      uses: aws-actions/configure-aws-credentials@v1.7.0
+      with:
+        role-to-assume: arn:aws:iam::025720625341:role/CICDDeploymentRole
+        role-session-name: GitHub_to_AWS_via_FederatedOIDC
+        aws-region: us-east-1
+
+    # - name: Configure the AWS profile credentials for prod
+    #   if: ${{ github.ref == 'refs/heads/master' }}
+    #   run: npx serverless config credentials --provider aws --profile prod --key $AWS_ACCESS_KEY_ID --secret $AWS_SECRET_ACCESS_KEY
+    #   env:
+    #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+    #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+    # - name: Configure the AWS profile credentials for staging
+    #   if: ${{ github.ref == 'refs/heads/staging-final' }}
+    #   run: npx serverless config credentials --provider aws --profile staging
+      # env:
+        # AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_STAGING }}
+        # AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_STAGING }}
+      
+    - name: serverless
+      uses: serverless/github-action@v3
+    - name: serverless deploy
+      run: 
+        for file in ${{ steps.changed-files.outputs.changed_files }}; do
+          echo "$file was changed"
+          # serveless deploy
+      # with:
+      #   args: deploy
+
+    # - name: Deploy the services to the prod account
+    #   if: ${{ github.ref == 'refs/heads/master' }}
+    #   run: node deployServices.js prod
+    #   env:
+    #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+    #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+    # - name: Deploy the services to the staging account
+      # if: ${{ github.ref == 'refs/heads/staging-final' }}
+      # run: python3 cicd_workflow. staging
+      # env:
+      #   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID_STAGING }}
+      #   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY_STAGING }}
